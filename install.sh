@@ -43,7 +43,7 @@ EOF
 systemctl daemon-reload && systemctl enable --now sing-box && systemctl restart sing-box
 
 SERVER_IP=$(curl -s4 https://api.ipify.org || curl -s4 https://ifconfig.me)
-NODE_LINK="vless://${UUID}@${SERVER_IP}:443?encryption=none&flow=xtls-rprx-vision&security=reality&sni=gateway.icloud.com&fp=chrome&pbk=${PUBLIC_KEY}&sid=${SHORT_ID}&type=tcp#codeaduck"
+NODE_LINK="vless://${UUID}@${SERVER_IP}:443?encryption=none&flow=xtls-rprx-vision&security=reality&sni=gateway.icloud.com&fp=firefox&pbk=${PUBLIC_KEY}&sid=${SHORT_ID}&type=tcp#codeaduck"
 
 clear
 cat <<EOF | tee /root/node_info.txt
