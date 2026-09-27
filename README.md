@@ -31,6 +31,6 @@ sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/CODE-A-DUCK/my-mom-
    ![v2rayN 核心类型设置](image.png)
    ![v2rayN TUN 模式](image-1.png)
 
-### 2. 手机 — v2rayNG / Shadowrocket / sing-box
+### 2. 手机 — v2rayNG / nekobox
 
 客户端 App 扫描终端中显示的二维码鸡可。
