@@ -2,23 +2,25 @@
 set -e
 [ "$(id -u)" -ne 0 ] && echo "[-] Error: Please run as root!" && exit 1
 
-printf 'net.core.default_qdisc=fq\n
-net.ipv4.tcp_congestion_control=bbr\n
-net.core.rmem_max=16777216\n
-net.core.wmem_max=16777216\n
-net.ipv4.udp_rmem_min=8192\n
-net.ipv4.udp_wmem_min=8192\n
-net.ipv4.tcp_fastopen=3\n
-net.ipv4.tcp_notsent_lowat=16384\n
-net.ipv4.tcp_slow_start_after_idle=0\n
-net.ipv4.tcp_autocorking=0\n
-net.ipv4.tcp_syn_retries=2\n
-net.ipv4.tcp_synack_retries=2\n
-net.ipv4.tcp_fin_timeout=10\n
-net.ipv4.tcp_tw_reuse=1\n
-net.core.netdev_max_backlog=32768\n
-net.core.somaxconn=32768\n
-net.ipv4.tcp_max_syn_backlog=16384\n' > /etc/sysctl.d/pork.conf
+cat > /etc/sysctl.d/pork.conf << 'SYSCTL'
+net.core.default_qdisc=fq
+net.ipv4.tcp_congestion_control=bbr
+net.core.rmem_max=16777216
+net.core.wmem_max=16777216
+net.ipv4.udp_rmem_min=8192
+net.ipv4.udp_wmem_min=8192
+net.ipv4.tcp_fastopen=3
+net.ipv4.tcp_notsent_lowat=16384
+net.ipv4.tcp_slow_start_after_idle=0
+net.ipv4.tcp_autocorking=0
+net.ipv4.tcp_syn_retries=2
+net.ipv4.tcp_synack_retries=2
+net.ipv4.tcp_fin_timeout=10
+net.ipv4.tcp_tw_reuse=1
+net.core.netdev_max_backlog=32768
+net.core.somaxconn=32768
+net.ipv4.tcp_max_syn_backlog=16384
+SYSCTL
 sysctl --system > /dev/null 2>&1 || true
 
 apt-get update -qq && apt-get install -y -qq curl openssl qrencode ufw > /dev/null 2>&1
