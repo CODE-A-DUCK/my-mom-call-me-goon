@@ -12,7 +12,7 @@
 在你的 VPS 上运行以下命令：
 
 ```bash
-sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/CODE-A-DUCK/singbox-game-deploy/main/install.sh)"
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/CODE-A-DUCK/my-mom-call-me-goon/main/install.sh)"
 ```
 
 ## 客户端设置
