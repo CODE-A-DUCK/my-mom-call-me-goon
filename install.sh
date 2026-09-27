@@ -20,14 +20,39 @@ net.ipv4.tcp_tw_reuse=1
 net.core.netdev_max_backlog=32768
 net.core.somaxconn=32768
 net.ipv4.tcp_max_syn_backlog=16384
+net.core.busy_read=50
+net.core.busy_poll=50
 SYSCTL
 sysctl --system > /dev/null 2>&1 || true
+
+echo never > /sys/kernel/mm/transparent_hugepage/enabled 2>/dev/null || true
+echo never > /sys/kernel/mm/transparent_hugepage/defrag 2>/dev/null || true
+
+cat > /etc/systemd/system/lowlatency-tuning.service << 'UNIT'
+[Unit]
+Description=Low Latency Network Tuning
+After=network.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash -c '\
+  echo never > /sys/kernel/mm/transparent_hugepage/enabled 2>/dev/null || true; \
+  echo never > /sys/kernel/mm/transparent_hugepage/defrag 2>/dev/null || true; \
+  IFACE=$(ip route | awk "/default/{print \\$5}"); \
+  ethtool -C $IFACE rx-usecs 0 tx-usecs 0 rx-frames 1 tx-frames 1 2>/dev/null || true; \
+  ethtool -K $IFACE gro off gso off tso off 2>/dev/null || true'
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+systemctl daemon-reload && systemctl enable --now lowlatency-tuning > /dev/null 2>&1 || true
 
 apt-get update -qq && apt-get install -y -qq curl openssl qrencode ufw > /dev/null 2>&1
 curl -fsSL https://sing-box.app/deb-install.sh | bash > /dev/null 2>&1
 
 ufw allow 22/tcp  > /dev/null 2>&1
-ufw allow 443     > /dev/null 2>&1
+ufw allow 443/tcp > /dev/null 2>&1
 ufw --force enable > /dev/null 2>&1
 
 UUID=$(sing-box generate uuid)
@@ -35,14 +60,8 @@ KEYS=$(sing-box generate reality-keypair)
 PRIVATE_KEY=$(echo "$KEYS" | awk '/PrivateKey/{print $2}')
 PUBLIC_KEY=$(echo "$KEYS" | awk '/PublicKey/{print $2}')
 SHORT_ID=$(openssl rand -hex 8)
-HY2_PASS=$(openssl rand -hex 16)
 
 mkdir -p /etc/sing-box
-openssl req -x509 -nodes -newkey ec -pkeyopt ec_paramgen_curve:P-256 \
-  -keyout /etc/sing-box/hy2.key \
-  -out    /etc/sing-box/hy2.crt \
-  -days 3650 -subj "/CN=gateway.icloud.com" 2>/dev/null
-
 cat <<EOF > /etc/sing-box/config.json
 {
   "log": { "level": "warn" },
@@ -63,17 +82,6 @@ cat <<EOF > /etc/sing-box/config.json
           "short_id": ["$SHORT_ID"]
         }
       }
-    },
-    {
-      "type": "hysteria2",
-      "listen": "::",
-      "listen_port": 443,
-      "users": [{ "password": "$HY2_PASS" }],
-      "tls": {
-        "enabled": true,
-        "certificate_path": "/etc/sing-box/hy2.crt",
-        "key_path": "/etc/sing-box/hy2.key"
-      }
     }
   ],
   "outbounds": [{ "type": "direct" }]
@@ -82,36 +90,40 @@ EOF
 
 systemctl daemon-reload && systemctl enable --now sing-box && systemctl restart sing-box
 
-SERVER_IP=$(curl -s4 https://api.ipify.org || curl -s4 https://ifconfig.me)
+SING_PID=$(pgrep -x sing-box || true)
+if [ -n "$SING_PID" ]; then
+  taskset -pc 0 $SING_PID > /dev/null 2>&1 || true
+  chrt -f -p 99 $SING_PID > /dev/null 2>&1 || true
+fi
 
-VLESS_LINK="vless://${UUID}@${SERVER_IP}:443?encryption=none&flow=xtls-rprx-vision&security=reality&sni=gateway.icloud.com&fp=firefox&pbk=${PUBLIC_KEY}&sid=${SHORT_ID}&type=tcp&tfo=1#codeaduck-vless"
-HY2_LINK="hysteria2://${HY2_PASS}@${SERVER_IP}:443?insecure=1&sni=gateway.icloud.com#codeaduck-hy2"
+mkdir -p /etc/systemd/system/sing-box.service.d
+cat > /etc/systemd/system/sing-box.service.d/override.conf << 'OVERRIDE'
+[Service]
+CPUAffinity=0
+Nice=-20
+OVERRIDE
+systemctl daemon-reload
+
+SERVER_IP=$(curl -s4 https://api.ipify.org || curl -s4 https://ifconfig.me)
+NODE_LINK="vless://${UUID}@${SERVER_IP}:443?encryption=none&flow=xtls-rprx-vision&security=reality&sni=gateway.icloud.com&fp=firefox&pbk=${PUBLIC_KEY}&sid=${SHORT_ID}&type=tcp&tfo=1#codeaduck"
 
 clear
 cat <<EOF | tee /root/node_info.txt
 *********************************************************
           DONE.
 *********************************************************
-Server IP  : $SERVER_IP
-Port       : 443 (TCP=VLESS, UDP=Hysteria2)
+Server IP : $SERVER_IP
+Port      : 443
+UUID      : $UUID
+Public Key: $PUBLIC_KEY
+Short ID  : $SHORT_ID
+SNI       : gateway.icloud.com
 
-── VLESS + XTLS-Vision + Reality (TCP) ─────────────────
-UUID       : $UUID
-Public Key : $PUBLIC_KEY
-Short ID   : $SHORT_ID
-SNI        : gateway.icloud.com
-$VLESS_LINK
-
-── Hysteria2 (UDP) ──────────────────────────────────────
-Password   : $HY2_PASS
-$HY2_LINK
+Node Link :
+$NODE_LINK
 *********************************************************
 EOF
 
-printf "\n[VLESS] QR Code (v2rayNG / Shadowrocket / Sing-box):\n\n"
-qrencode -t ANSIUTF8 "$VLESS_LINK"
-
-printf "\n[Hysteria2] QR Code (Sing-box / Hiddify / NekoBox):\n\n"
-qrencode -t ANSIUTF8 "$HY2_LINK"
-
+printf "\nQRcode: \n\n"
+qrencode -t ANSIUTF8 "$NODE_LINK"
 echo ""
